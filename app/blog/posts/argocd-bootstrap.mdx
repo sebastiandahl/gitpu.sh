@@ -46,7 +46,7 @@ First, create a GitHub App to allow ArgoCD to read your repo contents securely.
 
 Store the App credentials as repository secrets so that GitHub Actions can authenticate to GitHub.
 
-```text
+```
 gh auth login
 
 gh secret set ARGOCD_APP_ID \
@@ -66,7 +66,7 @@ gh secret set ARGOCD_APP_INSTALLATION_ID \
 
 Define runtime variables per environment to target your AKS cluster and resource group.
 
-```text
+```
 gh variable set CLIENT_ID \
   --body 'YOUR_CLIENT_ID' \
   --repo automacorp/lz-automacorp \
@@ -209,7 +209,7 @@ Remember to create and populate your ArgoCD helm values file (`argocd/manifests/
 To secure ArgoCD’s UI with Entra ID, register an Entra ID application and federate AKS OIDC.
 
 ### 5.1 Create the Entra ID App
-```text
+```
 az ad app create \
   --display-name 'ArgoCD-OIDC' \
   --web-redirect-uris 'https://argocd.automacorp.com/auth/callback' \
@@ -219,7 +219,7 @@ az ad app create \
 ```
 
 ### 5.2 Retrieve the AKS OIDC Issuer URL
-```text
+```
 az aks show \
   --resource-group d-automacorp-rg \
   --name d-automacorp-aks \
@@ -228,7 +228,7 @@ az aks show \
 ```
 
 ### 5.3 Federate the ArgoCD Service account
-```text
+```
 az ad app federated-credential create \
   --id <objectId> \
   --parameters '{
@@ -240,7 +240,7 @@ az ad app federated-credential create \
 ```
 
 ### 5.4 Grant Microsoft Graph Permissions
-```text
+```
 az ad app permission add \
   --id <objectId> \
   --api 00000003-0000-0000-c000-000000000000 \
@@ -256,7 +256,7 @@ az ad app permission admin-consent \
 ```
 
 ### 5.5 Configure Security Groups for ArgoCD Roles
-```text
+```
 az ad group create \
   --display-name 'ArgoCD-Admins' \
   --mail-nickname 'argocd-admins'
