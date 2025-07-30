@@ -4,8 +4,10 @@ publishedAt: '2025-07-30'
 summary: 'Learn how to bootstrap ArgoCD on AKS using GitHub Actions, integrating with GitHub App authentication and Azure Entra ID SSO.'
 ---
 
-ArgoCD provides a declarative, GitOps continuous reconciliation solution for Kubernetes. 
+ArgoCD provides a declarative, GitOps continuous reconciliation solution for Kubernetes.
+
 By bootstrapping ArgoCD with GitHub Actions, you can automate the installation and configuration of ArgoCD on your Azure Kubernetes Service (AKS) clusters. 
+
 In this post, I’ll walk through setting up a GitHub App for ArgoCD, configuring repository secrets and environment variables, creating the GitHub Actions workflow, and enabling Azure Entra ID SSO via OpenID Connect (OIDC).
 
 ## Prerequisites
@@ -200,7 +202,7 @@ jobs:
         run: echo "→ ArgoCD already installed; skipping"
 ```
 
-Remember to populate your ArgoCD helm values file (`argocd/manifests/values.yml`) and projects folder (`argocd/projects/`).
+Remember to create and populate your ArgoCD helm values file (`argocd/manifests/values.yml`) and projects folder (`argocd/projects/`).
 
 ## 5. Enable Azure Entra ID SSO with ArgoCD
 
