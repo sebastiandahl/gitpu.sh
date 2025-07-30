@@ -256,8 +256,7 @@ az ad app permission admin-consent \
 ```
 
 ### 5.5 Configure Security Groups for ArgoCD Roles
-<pre>
-  <code>
+```
 az ad group create \
   --display-name 'ArgoCD-Admins' \
   --mail-nickname 'argocd-admins'
@@ -269,8 +268,7 @@ az ad group member add \
 az ad app update \
   --id <objectId> \
   --set groupMembershipClaims=SecurityGroup
-  </code>
-</pre>
+```
 
 In your **ArgoCD Helm values.yml**, set `oidc.config.clientID` to the appId, and map the ArgoCD-Admins group to the admin role.
 
