@@ -230,10 +230,10 @@ az aks show \
 ### 5.3 Federate the ArgoCD Service account
 ```
 az ad app federated-credential create \
-  --id <objectId> \
+  --id 'objectId' \
   --parameters '{
     "name": "argocd-federation",
-    "issuer": "<aks-oidc-issuer-url>",
+    "issuer": "'aks-oidc-issuer-url'",
     "subject": "system:serviceaccount:argocd:argocd-server",
     "audiences": ["api://AzureADTokenExchange"]
   }'
@@ -242,17 +242,17 @@ az ad app federated-credential create \
 ### 5.4 Grant Microsoft Graph Permissions
 ```
 az ad app permission add \
-  --id <objectId> \
+  --id 'objectId' \
   --api 00000003-0000-0000-c000-000000000000 \
   --api-permissions e1fe6dd8-ba31-4d61-89e7-88639da4683d=Scope
 
 az ad app permission grant \
-  --id <objectId> \
+  --id 'objectId' \
   --api 00000003-0000-0000-c000-000000000000 \
   --scope User.Read
 
 az ad app permission admin-consent \
-  --id <objectId>
+  --id 'objectId'
 ```
 
 ### 5.5 Configure Security Groups for ArgoCD Roles
@@ -263,10 +263,10 @@ az ad group create \
 
 az ad group member add \
   --group 'ArgoCD-Admins' \
-  --member-id <userObjectId>
+  --member-id 'userObjectId'
 
 az ad app update \
-  --id <objectId> \
+  --id 'objectId' \
   --set groupMembershipClaims=SecurityGroup
 ```
 
