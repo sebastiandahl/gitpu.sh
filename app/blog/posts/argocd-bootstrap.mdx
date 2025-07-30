@@ -4,7 +4,9 @@ publishedAt: '2025-07-30'
 summary: 'Learn how to bootstrap ArgoCD on AKS using GitHub Actions, integrating with GitHub App authentication and Azure Entra ID SSO.'
 ---
 
-ArgoCD provides a declarative, GitOps continuous reconciliation solution for Kubernetes. By bootstrapping ArgoCD with GitHub Actions, you can automate the installation and configuration of ArgoCD on your Azure Kubernetes Service (AKS) clusters. In this post, I’ll walk through setting up a GitHub App for ArgoCD, configuring repository secrets and environment variables, creating the GitHub Actions workflow, and enabling Azure Entra ID SSO via OpenID Connect (OIDC).
+ArgoCD provides a declarative, GitOps continuous reconciliation solution for Kubernetes. 
+By bootstrapping ArgoCD with GitHub Actions, you can automate the installation and configuration of ArgoCD on your Azure Kubernetes Service (AKS) clusters. 
+In this post, I’ll walk through setting up a GitHub App for ArgoCD, configuring repository secrets and environment variables, creating the GitHub Actions workflow, and enabling Azure Entra ID SSO via OpenID Connect (OIDC).
 
 ## Prerequisites
 
@@ -43,20 +45,16 @@ First, create a GitHub App to allow ArgoCD to read your repo contents securely.
 Store the App credentials as repository secrets so that GitHub Actions can authenticate to GitHub.
 
 ```bash
-# Authenticate to GitHub CLI
 gh auth login
 
-# Set the App ID
 gh secret set ARGOCD_APP_ID \
   --body 'YOUR_APP_ID' \
   --repo Contoso/lz-contoso
 
-# Set the private key (contents of key.pem)
 gh secret set ARGOCD_APP_PRIVATE_KEY \
   --body "$(cat key.pem)" \
   --repo Contoso/lz-contoso
 
-# Set the Installation ID
 gh secret set ARGOCD_APP_INSTALLATION_ID \
   --body 'YOUR_INSTALLATION_ID' \
   --repo Contoso/lz-contoso
@@ -241,7 +239,6 @@ az ad app federated-credential create \
 
 ### 5.4 Grant Microsoft Graph Permissions
 ```bash
-# Grant User.Read scope
 az ad app permission add \
   --id <objectId> \
   --api 00000003-0000-0000-c000-000000000000 \
@@ -272,4 +269,5 @@ az ad app update \
 ```
 
 In your **ArgoCD Helm values.yml**, set `oidc.config.clientID` to the appId, and map the ArgoCD-Admins group to the admin role.
+
 Populate your `argocd/projects/` folder with AppProject, Application/ApplicationSet-manifests and run the workflow.
