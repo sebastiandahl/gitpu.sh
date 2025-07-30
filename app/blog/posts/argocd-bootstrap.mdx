@@ -16,18 +16,18 @@ Before we begin, ensure you have:
 
 - An existing Azure tenant and subscription  
 - A Landing Zone in Azure with managed identities and GitHub federation
-- An Azure Kubernetes Service cluster in that Landing Zone (e.g. `d-contoso-aks` in Resource Group `d-contoso-rg`)
+- An Azure Kubernetes Service cluster in that Landing Zone (e.g. `d-automacorp-aks` in Resource Group `d-automacorp-rg`)
 - A subscription‑vending process already wired to your GitHub repo    
-- A GitHub Organization (e.g. `Contoso`)
-- A GitHub repository (`contoso/lz-contoso`) for deployments and ArgoCD manifests   
+- A GitHub Organization (e.g. `AutomaCorp`)
+- A GitHub repository (`automacorp/lz-automacorp`) for deployments and ArgoCD manifests   
 
 ## 1. Install GitHub App for ArgoCD
 
 First, create a GitHub App to allow ArgoCD to read your repo contents securely.
 
-1. Navigate to **https://github.com/organizations/Contoso/settings/apps** and click **New GitHub App**.  
+1. Navigate to **https://github.com/organizations/AutomaCorp/settings/apps** and click **New GitHub App**.  
 2. **Name:** `argocd-management-app`  
-3. **Homepage URL:** `https://github.com/Contoso`  
+3. **Homepage URL:** `https://github.com/AutomaCorp`  
 4. **Description (Optional):** `Authentication between ArgoCD and GitHub`  
 5. Leave **Callback URL** and **Setup URL & Redirect** blank.  
 6. **Webhook events:** Uncheck **Active** (we don’t need webhooks).  
@@ -35,11 +35,11 @@ First, create a GitHub App to allow ArgoCD to read your repo contents securely.
    - **Repository → Contents:** Read-only  
    - **Repository → Metadata:** Read-only  
    - All other permissions: No access  
-8. **Where to install:** Only on this account (Contoso).  
+8. **Where to install:** Only on this account (AutomaCorp).  
 9. Click **Create GitHub App**.  
-10. After creation, click **Install App** → **Only select repositories** → choose `contoso/lz-contoso` → **Install**.  
+10. After creation, click **Install App** → **Only select repositories** → choose `automacorp/lz-automacorp` → **Install**.  
 11. Under **Private keys**, click **Generate a private key**. Save the downloaded `key.pem`.  
-12. Back in **Install App**, confirm the app is installed on the `contoso/lz-contoso` repo.  
+12. Back in **Install App**, confirm the app is installed on the `automacorp/lz-automacorp` repo.  
 13. Note the **App ID** and **Installation ID** for later.
 
 ## 2. Add Secrets to the GitHub Repository
@@ -51,15 +51,15 @@ gh auth login
 
 gh secret set ARGOCD_APP_ID \
   --body 'YOUR_APP_ID' \
-  --repo Contoso/lz-contoso
+  --repo automacorp/lz-automacorp
 
 gh secret set ARGOCD_APP_PRIVATE_KEY \
   --body "$(cat key.pem)" \
-  --repo Contoso/lz-contoso
+  --repo automacorp/lz-automacorp
 
 gh secret set ARGOCD_APP_INSTALLATION_ID \
   --body 'YOUR_INSTALLATION_ID' \
-  --repo Contoso/lz-contoso
+  --repo automacorp/lz-automacorp
 ```
 
 ## 3. Configure Environment Variables for the “Manage ArgoCD” Workflow
@@ -69,17 +69,17 @@ Define runtime variables per environment to target your AKS cluster and resource
 ```bash
 gh variable set CLIENT_ID \
   --body 'YOUR_CLIENT_ID' \
-  --repo Contoso/argocd-bootstrap \
+  --repo automacorp/lz-automacorp \
   --env dev
 
 gh variable set RESOURCE_GROUP \
-  --body 'd-contoso-rg' \
-  --repo Contoso/argocd-bootstrap \
+  --body 'd-automacorp-rg' \
+  --repo automacorp/lz-automacorp \
   --env dev
 
 gh variable set CLUSTER_NAME \
-  --body 'd-contoso-aks' \
-  --repo Contoso/argocd-bootstrap \
+  --body 'd-automacorp-aks' \
+  --repo automacorp/lz-automacorp \
   --env dev
 ```
 
@@ -212,7 +212,7 @@ To secure ArgoCD’s UI with Entra ID, register an Entra ID application and fede
 ```bash
 az ad app create \
   --display-name 'ArgoCD-OIDC' \
-  --web-redirect-uris 'https://argocd.contoso.com/auth/callback' \
+  --web-redirect-uris 'https://argocd.automacorp.com/auth/callback' \
   --sign-in-audience AzureADMyOrg \
   --query '{appId: appId, objectId: id}' \
   -o json
@@ -221,8 +221,8 @@ az ad app create \
 ### 5.2 Retrieve the AKS OIDC Issuer URL
 ```bash
 az aks show \
-  --resource-group d-contoso-rg \
-  --name d-contoso-aks \
+  --resource-group d-automacorp-rg \
+  --name d-automacorp-aks \
   --query 'oidcIssuerProfile.issuerUrl' \
   --output tsv
 ```
