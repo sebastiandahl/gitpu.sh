@@ -1,0 +1,275 @@
+---
+title: 'ArgoCD Bootstrap'
+publishedAt: '2025-07-30'
+summary: 'Learn how to bootstrap ArgoCD on AKS using GitHub Actions, integrating with GitHub App authentication and Azure Entra ID SSO.'
+---
+
+ArgoCD provides a declarative, GitOps continuous reconciliation solution for Kubernetes. By bootstrapping ArgoCD with GitHub Actions, you can automate the installation and configuration of ArgoCD on your Azure Kubernetes Service (AKS) clusters. In this post, I’ll walk through setting up a GitHub App for ArgoCD, configuring repository secrets and environment variables, creating the GitHub Actions workflow, and enabling Azure Entra ID SSO via OpenID Connect (OIDC).
+
+## Prerequisites
+
+Before we begin, ensure you have:
+
+- An existing Azure tenant and subscription  
+- A Landing Zone in Azure with managed identities and GitHub federation
+- An Azure Kubernetes Service cluster in that Landing Zone (e.g. `d-contoso-aks` in Resource Group `d-contoso-rg`)
+- A subscription‑vending process already wired to your GitHub repo    
+- A GitHub Organization (e.g. `Contoso`)
+- A GitHub repository (`contoso/lz-contoso`) for deployments and ArgoCD manifests   
+
+## 1. Install GitHub App for ArgoCD
+
+First, create a GitHub App to allow ArgoCD to read your repo contents securely.
+
+1. Navigate to **https://github.com/organizations/Contoso/settings/apps** and click **New GitHub App**.  
+2. **Name:** `argocd-management-app`  
+3. **Homepage URL:** `https://github.com/Contoso`  
+4. **Description (Optional):** `Authentication between ArgoCD and GitHub`  
+5. Leave **Callback URL** and **Setup URL & Redirect** blank.  
+6. **Webhook events:** Uncheck **Active** (we don’t need webhooks).  
+7. **Permissions:**  
+   - **Repository → Contents:** Read-only  
+   - **Repository → Metadata:** Read-only  
+   - All other permissions: No access  
+8. **Where to install:** Only on this account (Contoso).  
+9. Click **Create GitHub App**.  
+10. After creation, click **Install App** → **Only select repositories** → choose `contoso/lz-contoso` → **Install**.  
+11. Under **Private keys**, click **Generate a private key**. Save the downloaded `key.pem`.  
+12. Back in **Install App**, confirm the app is installed on the `contoso/lz-contoso` repo.  
+13. Note the **App ID** and **Installation ID** for later.
+
+## 2. Add Secrets to the GitHub Repository
+
+Store the App credentials as repository secrets so that GitHub Actions can authenticate to GitHub.
+
+```bash
+# Authenticate to GitHub CLI
+gh auth login
+
+# Set the App ID
+gh secret set ARGOCD_APP_ID \
+  --body 'YOUR_APP_ID' \
+  --repo Contoso/lz-contoso
+
+# Set the private key (contents of key.pem)
+gh secret set ARGOCD_APP_PRIVATE_KEY \
+  --body "$(cat key.pem)" \
+  --repo Contoso/lz-contoso
+
+# Set the Installation ID
+gh secret set ARGOCD_APP_INSTALLATION_ID \
+  --body 'YOUR_INSTALLATION_ID' \
+  --repo Contoso/lz-contoso
+```
+
+## 3. Configure Environment Variables for the “Manage ArgoCD” Workflow
+
+Define runtime variables per environment to target your AKS cluster and resource group.
+
+```bash
+gh variable set CLIENT_ID \
+  --body 'YOUR_CLIENT_ID' \
+  --repo Contoso/argocd-bootstrap \
+  --env dev
+
+gh variable set RESOURCE_GROUP \
+  --body 'd-contoso-rg' \
+  --repo Contoso/argocd-bootstrap \
+  --env dev
+
+gh variable set CLUSTER_NAME \
+  --body 'd-contoso-aks' \
+  --repo Contoso/argocd-bootstrap \
+  --env dev
+```
+
+## 4. Add the "Manage ArgoCD" GitHub Actions Workflow
+
+Create `.github/workflows/manage-argocd.yml` in your repository:
+```yaml
+name: Manage ArgoCD
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  manage-argocd:
+    environment: dev
+    runs-on: ubuntu-latest
+    env:
+      ARGOCD_REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ vars.CLIENT_ID }}
+          tenant-id:       ${{ vars.TENANT_ID }}
+          subscription-id: ${{ vars.SUBSCRIPTION_ID }}
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Setup kubelogin for AAD auth
+        uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: 'v0.2.8'
+
+      - name: Set AKS kubectl context
+        uses: azure/aks-set-context@v2
+        with:
+          resource-group: ${{ vars.RESOURCE_GROUP }}
+          cluster-name:   ${{ vars.CLUSTER_NAME }}
+          subscription:   ${{ vars.SUBSCRIPTION_ID }}
+          use-kubelogin:  true
+
+      - name: Convert kubeconfig for kubelogin
+        run: kubelogin convert-kubeconfig -l azurecli
+
+      - name: Add & update Argo Helm repo
+        run: |
+          helm repo add argo https://argoproj.github.io/argo-helm || true
+          helm repo update
+
+      - name: Detect existing ArgoCD release
+        id: detect
+        run: |
+          installed=$(helm list -n argocd --filter '^argocd$' -q)
+          echo "installed=$installed" >> $GITHUB_OUTPUT
+
+      - name: Bootstrap ArgoCD if missing
+        if: ${{ steps.detect.outputs.installed == '' }}
+        run: |
+          echo "→ ArgoCD not found → bootstrapping"
+          helm install argocd argo/argo-cd \
+            --namespace argocd \
+            --create-namespace \
+            -f argocd/manifests/values.yml
+
+          echo "→ waiting for server pod"
+          kubectl wait \
+            --namespace argocd \
+            --for=condition=ready pod \
+            --selector=app.kubernetes.io/name=argocd-server \
+            --timeout=120s
+
+          echo "→ install ArgoCD CLI"
+          curl -sSL https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64 \
+            -o /tmp/argocd
+          sudo install -m 755 /tmp/argocd /usr/local/bin/argocd
+
+          echo "→ determining Argo CD server address"
+          ARGO_HOST=$(kubectl get svc argocd-server -n argocd \
+            -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          echo "→ ARGO_HOST=$ARGO_HOST"
+
+          echo "→ login to ArgoCD"
+          max_attempts=5
+          attempt_num=1
+          until argocd login $ARGO_HOST \
+              --username admin \
+              --password "$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)" \
+              --insecure; do
+            echo " → login failed (attempt $attempt_num/$max_attempts), retrying in 5s…"
+            if [ "$attempt_num" -ge "$max_attempts" ]; then
+              echo " → login failed after $max_attempts attempts, aborting"
+              exit 1
+            fi
+            attempt_num=$((attempt_num + 1))
+            sleep 5
+          done
+
+          echo "→ add GitHub repo & apply projects"
+          printf '%s\n' "${{ secrets.ARGOCD_APP_PRIVATE_KEY }}" > key.pem
+          argocd repo add "$ARGOCD_REPO_URL" \
+            --github-app-id ${{ secrets.ARGOCD_APP_ID }} \
+            --github-app-installation-id ${{ secrets.ARGOCD_APP_INSTALLATION_ID }} \
+            --github-app-private-key-path ./key.pem
+
+          kubectl apply -f argocd/projects/
+      
+      - name: Skip bootstrap if already installed
+        if: ${{ steps.detect.outputs.installed != '' }}
+        run: echo "→ ArgoCD already installed; skipping"
+```
+
+Remember to populate your ArgoCD helm values file (`argocd/manifests/values.yml`) and projects folder (`argocd/projects/`).
+
+## 5. Enable Azure Entra ID SSO with ArgoCD
+
+To secure ArgoCD’s UI with Entra ID, register an Entra ID application and federate AKS OIDC.
+
+### 5.1 Create the Entra ID App
+```bash
+az ad app create \
+  --display-name 'ArgoCD-OIDC' \
+  --web-redirect-uris 'https://argocd.contoso.com/auth/callback' \
+  --sign-in-audience AzureADMyOrg \
+  --query '{appId: appId, objectId: id}' \
+  -o json
+```
+
+### 5.2 Retrieve the AKS OIDC Issuer URL
+```bash
+az aks show \
+  --resource-group d-contoso-rg \
+  --name d-contoso-aks \
+  --query 'oidcIssuerProfile.issuerUrl' \
+  --output tsv
+```
+
+### 5.3 Federate the ArgoCD Service account
+```bash
+az ad app federated-credential create \
+  --id <objectId> \
+  --parameters '{
+    "name": "argocd-federation",
+    "issuer": "<aks-oidc-issuer-url>",
+    "subject": "system:serviceaccount:argocd:argocd-server",
+    "audiences": ["api://AzureADTokenExchange"]
+  }'
+```
+
+### 5.4 Grant Microsoft Graph Permissions
+```bash
+# Grant User.Read scope
+az ad app permission add \
+  --id <objectId> \
+  --api 00000003-0000-0000-c000-000000000000 \
+  --api-permissions e1fe6dd8-ba31-4d61-89e7-88639da4683d=Scope
+
+az ad app permission grant \
+  --id <objectId> \
+  --api 00000003-0000-0000-c000-000000000000 \
+  --scope User.Read
+
+az ad app permission admin-consent \
+  --id <objectId>
+```
+
+### 5.5 Configure Security Groups for ArgoCD Roles
+```bash
+az ad group create \
+  --display-name 'ArgoCD-Admins' \
+  --mail-nickname 'argocd-admins'
+
+az ad group member add \
+  --group 'ArgoCD-Admins' \
+  --member-id <userObjectId>
+
+az ad app update \
+  --id <objectId> \
+  --set groupMembershipClaims=SecurityGroup
+```
+
+In your **ArgoCD Helm values.yml**, set `oidc.config.clientID` to the appId, and map the ArgoCD-Admins group to the admin role.
+Populate your `argocd/projects/` folder with AppProject, Application/ApplicationSet-manifests and run the workflow.
