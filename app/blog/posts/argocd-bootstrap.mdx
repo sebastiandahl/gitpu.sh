@@ -274,8 +274,16 @@ In your **ArgoCD Helm values.yml**, set `oidc.config.clientID` to the appId, and
 
 Populate your `argocd/projects/` folder with AppProject, Application/ApplicationSet-manifests and run the workflow.
 
+You can now log in with Entra ID in the ArgoCD portal:
 <img
   src="/images/argocdlogin.png"
   alt="Login Portal"
+  style={{ maxWidth: '100%', height: 'auto' }}
+/>
+
+Your apps should now appear automagically:
+<img
+  src="/images/argocdportal.png"
+  alt="Apps"
   style={{ maxWidth: '100%', height: 'auto' }}
 />
