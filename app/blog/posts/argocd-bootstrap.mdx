@@ -1,14 +1,14 @@
 ---
 title: 'ArgoCD Bootstrap'
 publishedAt: '2025-07-30'
-summary: 'Learn how to bootstrap ArgoCD on AKS using GitHub Actions, integrating with GitHub App authentication and Azure Entra ID SSO.'
+summary: 'Learn how to bootstrap ArgoCD on AKS using GitHub Actions, integrating with GitHub App authentication and Microsoft Entra ID SSO.'
 ---
 
 ArgoCD provides a declarative, GitOps continuous reconciliation solution for Kubernetes.
 
 By bootstrapping ArgoCD with GitHub Actions, you can automate the installation and configuration of ArgoCD on your Azure Kubernetes Service (AKS) clusters. 
 
-In this post, I’ll walk through setting up a GitHub App for ArgoCD, configuring repository secrets and environment variables, creating the GitHub Actions workflow, and enabling Azure Entra ID SSO via OpenID Connect (OIDC).
+In this post, I’ll walk through setting up a GitHub App for ArgoCD, configuring repository secrets and environment variables, creating the GitHub Actions workflow, and enabling Microsoft Entra ID SSO via OpenID Connect (OIDC).
 
 ## Prerequisites
 
@@ -204,7 +204,7 @@ jobs:
 
 Remember to create and populate your ArgoCD helm values file (`argocd/manifests/values.yml`) and projects folder (`argocd/projects/`).
 
-## 5. Enable Azure Entra ID SSO with ArgoCD
+## 5. Enable Microsoft Entra ID SSO with ArgoCD
 
 To secure ArgoCD’s UI with Entra ID, register an Entra ID application and federate AKS OIDC.
 
@@ -273,3 +273,17 @@ az ad app update \
 In your **ArgoCD Helm values.yml**, set `oidc.config.clientID` to the appId, and map the ArgoCD-Admins group to the admin role.
 
 Populate your `argocd/projects/` folder with AppProject, Application/ApplicationSet-manifests and run the workflow.
+
+You can now log in with Entra ID in the ArgoCD portal:
+<img
+  src="/images/argocdlogin.png"
+  alt="Login Portal"
+  style={{ maxWidth: '100%', height: 'auto' }}
+/>
+
+Your apps should now appear automagically:
+<img
+  src="/images/argocdportal.png"
+  alt="Apps"
+  style={{ maxWidth: '100%', height: 'auto' }}
+/>
